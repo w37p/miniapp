@@ -1,37 +1,29 @@
-name: Deploy and Compile Go Telegram Bot
+name: 🚀 Deploy MiniApp
 
 on:
   push:
-    branches: [ main ]  # Триггер на пуш в main
+    branches: [main]
 
 jobs:
-  deploy-and-compile:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: 🧾 Checkout кода
+      uses: actions/checkout@v3
 
-    - name: Install SSH key
-      uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_KEY }}
-
-    - name: Compile and Restart Bot
+    - name: 🔐 Настроить SSH
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-        # Переходим в директорию с ботом
-        cd /root/miniapp
-        git config --global --add safe.directory /root/miniapp
-        git fetch
-        git reset --hard origin/main
-        git pull
-        go mod tidy
-        # Компилируем main.go (предполагается, что Go уже установлен на сервере)
-        go build -o tgbot main.go
-        kill $(cat /root/tgbot/bot.pid) 2>/dev/null || true
-        nohup ./tgbot > bot.log 2>&1 & echo $! >| bot.pid
-        
-        # Если нужно перезапустить сервис (пример для systemd)
-        # sudo systemctl restart tgbot.service
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+    - name: 📦 Pull + restart
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          cd /root/miniapp
+          git pull origin main
+          pkill -f main || true
+          nohup go run backend/main.go > log.txt 2>&1 &
         EOF
